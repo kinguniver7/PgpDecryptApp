@@ -8,29 +8,38 @@ using System.Threading.Tasks;
 
 namespace PgpDecryptApp.Services
 {
-    public class DecryptService : IDecryptService
+    /// <summary>
+    /// Pgp service
+    /// </summary>
+    public class PgpService : IPgpService
     {
+        /// <summary>
+        /// Decrypt file
+        /// </summary>
+        /// <param name="inputStream">Encrypted file</param>
+        /// <param name="privateKeyStream">Private key</param>
+        /// <param name="passPhrase">Passphrase</param>
+        /// <returns></returns>
         public PgpLiteralData Decrypt(Stream inputStream, Stream privateKeyStream, string passPhrase)
         {
             try
             {
-                PgpEncryptedDataList pgpEncrDataList = null;
                 PgpObject pgpObj = null;
-                PgpPrivateKey pgpPrvtKey = null;
-                PgpPublicKeyEncryptedData pgpPblcKeyEncrData = null;
-
                 var pgpObjFactory = new PgpObjectFactory(PgpUtilities.GetDecoderStream(inputStream));
                 var pgpScrKey = new PgpSecretKeyRingBundle(PgpUtilities.GetDecoderStream(privateKeyStream));
 
                 if (pgpObjFactory != null)
                     pgpObj = pgpObjFactory.NextPgpObject();
 
+                PgpEncryptedDataList pgpEncrDataList = null;
                 // the first object might be a PGP marker packet.
                 if (pgpObj is PgpEncryptedDataList)
                     pgpEncrDataList = (PgpEncryptedDataList)pgpObj;
                 else
                     pgpEncrDataList = (PgpEncryptedDataList)pgpObjFactory.NextPgpObject();
 
+                PgpPrivateKey pgpPrvtKey = null;
+                PgpPublicKeyEncryptedData pgpPblcKeyEncrData = null;
                 // decrypt
                 foreach (PgpPublicKeyEncryptedData pked in pgpEncrDataList.GetEncryptedDataObjects())
                 {
@@ -44,51 +53,47 @@ namespace PgpDecryptApp.Services
                 }
 
                 if (pgpPrvtKey == null)
-                    throw new ArgumentException("Secret key for message not found.");
+                    throw new ArgumentException("Secret key for file not found.");
 
 
                 using (Stream clear = pgpPblcKeyEncrData.GetDataStream(pgpPrvtKey))
                 {
-                    PgpObjectFactory plainFact = new PgpObjectFactory(clear);
+                    var plainFact = new PgpObjectFactory(clear);
 
-                    PgpObject message = plainFact.NextPgpObject();
+                    PgpObject pgpFile = plainFact.NextPgpObject();
 
-                    if (message is PgpCompressedData cData)
+                    if (pgpFile is PgpCompressedData cData)
                     {
-                        PgpObjectFactory of = null;
-
                         using (Stream compDataIn = cData.GetDataStream())
                         {
-                            of = new PgpObjectFactory(compDataIn);
-                        }
-
-                        message = of.NextPgpObject();
-                        if (message is PgpOnePassSignatureList)
-                        {
-                            message = of.NextPgpObject();
-                            PgpLiteralData Ld = null;
-                            return (PgpLiteralData)message;
-                        }
-                        else
-                        {
-                            PgpLiteralData Ld = null;
-                            return (PgpLiteralData)message;
-                        }
+                            var of = new PgpObjectFactory(compDataIn);
+                            pgpFile = of.NextPgpObject();
+                            if (pgpFile is PgpOnePassSignatureList)
+                            {
+                                pgpFile = of.NextPgpObject();
+                                return (PgpLiteralData)pgpFile;
+                            }
+                            else
+                            {
+                                return (PgpLiteralData)pgpFile;
+                            }
+                        }                        
                     }
-                    else if (message is PgpLiteralData)
+                    else if (pgpFile is PgpLiteralData)
                     {
-                        return (PgpLiteralData)message;
+                        return (PgpLiteralData)pgpFile;
                     }
-                    else if (message is PgpOnePassSignatureList)
-                        throw new PgpException("Encrypted message contains a signed message - not literal data.");
+                    else if (pgpFile is PgpOnePassSignatureList)
+                        throw new PgpException("Encrypted file contains a signed data - not literal data.");
                     else
-                        throw new PgpException("Message is not a simple encrypted file - type unknown.");
+                        throw new PgpException("File is not a simple encrypted file - type unknown.");
                 }
                
             }
             catch (PgpException ex)
             {
-                throw;
+                //TODO: Add log
+                throw ex;
             }
         }
 

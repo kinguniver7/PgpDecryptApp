@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Net.Http.Headers;
 using PgpDecryptApp.Helpers;
@@ -14,36 +15,52 @@ namespace PgpDecryptApp.Controllers
 {
     public class DecryptController : Controller
     {
-        private readonly IDecryptService _decryptService;
+        private readonly IPgpService _pgpService;
         private readonly IConfiguration _configuration;
 
-        public DecryptController(IDecryptService decryptService, IConfiguration configuration)
+        public DecryptController(IPgpService pgpService, IConfiguration configuration)
         {
-            _decryptService = decryptService;
+            _pgpService = pgpService;
             _configuration = configuration;
         }
 
+        [HttpGet]
         public IActionResult Index()
         {
             return View();
         }
 
         [HttpPost]
-        public IActionResult UploadFile(List<IFormFile> files)
+        [ValidateAntiForgeryToken]
+        public IActionResult DecodeFile(List<IFormFile> files)
         {   
             if (files != null && files.Count > 0)
             {
                 var file = files[0];
+                byte[] bytes = null;
+                string originalFileName = null;
                 using (var inpSteram = file.OpenReadStream())
-                {
+                {                    
                     using (var privateKey = new FileStream(_configuration.GetValue<string>("PrivateKeyFile"), FileMode.Open))
                     {
-                        var decodedFile = _decryptService.Decrypt(inpSteram, privateKey, _configuration.GetValue<string>("PassPhrase"));
-                        return File(FileHelpers.ReadFully(decodedFile.GetDataStream()), "application/octet-stream", fileDownloadName: decodedFile.FileName);
-                    }
-                    
+                        var decodedFile = _pgpService.Decrypt(inpSteram, privateKey, _configuration.GetValue<string>("PassPhrase"));
+                        
+                        if (decodedFile == null || string.IsNullOrWhiteSpace(decodedFile.FileName))
+                        {
+                            TempData["msg"] = "File name not found. Please try again!";
+                            return RedirectToAction("Index");
+                        }
+                        originalFileName = decodedFile.FileName;
+                        bytes = FileHelpers.ReadFully(decodedFile.GetDataStream()); 
+                    }                    
                 }
+                new FileExtensionContentTypeProvider().TryGetContentType(originalFileName, out string contentType);
                 
+                return File(bytes, contentType ?? "application/octet-stream", fileDownloadName: originalFileName);
+            }
+            else
+            {
+                TempData["msg"] = "File not found. Please try again!";
             }
             return RedirectToAction("Index");
         }

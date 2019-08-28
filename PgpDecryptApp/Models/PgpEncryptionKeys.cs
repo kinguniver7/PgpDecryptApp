@@ -9,7 +9,6 @@ namespace PgpDecryptApp.Models
 {
     public class PgpEncryptionKeys
     {
-
         public PgpPublicKey PublicKey { get; private set; }
 
         public PgpPrivateKey PrivateKey { get; private set; }

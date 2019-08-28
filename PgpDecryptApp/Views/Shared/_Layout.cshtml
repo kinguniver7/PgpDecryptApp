@@ -6,6 +6,10 @@
   <title>@ViewData["Title"]</title>
 </head>
 <body>
+  @if (TempData["msg"] != null)
+  {
+      <h1>@TempData["msg"]</h1>
+  }
   @RenderBody()
 </body>
 </html>

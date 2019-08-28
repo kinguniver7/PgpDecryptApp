@@ -25,7 +25,7 @@ namespace PgpDecryptApp
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddTransient<IDecryptService,DecryptService>();
+            services.AddTransient<IPgpService,PgpService>();
             services.AddSingleton(Configuration);
 
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
